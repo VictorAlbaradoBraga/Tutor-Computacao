@@ -1,0 +1,30 @@
+{
+  "name": "com.tutor.computacao",
+  "version": "1.0.0",
+  "displayName": "Tutor Computação - IA Chat",
+  "description": "Sistema de Chat com IA, incluindo UI, TTS, STT, integração com NPC.",
+  "unity": "2021.3",
+  "author": {
+    "name": "Victor Abarado Braga",
+    "email": "victorbragacadp2@gmail.com"
+  },
+  "keywords": [
+    "AI",
+    "Chat",
+    "TTS",
+    "STT",
+    "NPC",
+    "Tutor",
+    "Computação"
+  ],
+  "dependencies": {
+    "com.unity.textmeshpro": "3.0.6"
+  },
+  "samples": [
+    {
+      "displayName": "Chat UI",
+      "description": "Prefab de interface de chat pronta para arrastar para a cena.",
+      "path": "Runtime/UI"
+    }
+  ]
+}
