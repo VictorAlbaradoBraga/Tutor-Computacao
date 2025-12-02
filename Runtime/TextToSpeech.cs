@@ -9,16 +9,17 @@ using System.Globalization;
 
 public class TextToSpeech : MonoBehaviour
 {
+    public static event Action<string> OnTTSMessageStarted;
+
     [Header("Configurações de Voz")]
     public VoiceType voiceType = VoiceType.Robo;
-    [Tooltip("Nome exato da voz (opcional). Ex: pt-BR-Wavenet-B")]
     public string voiceNameOverride = "";
     [Range(-10f, 10f)] public float pitch = 2.0f;
     [Range(0.5f, 2.0f)] public float speakingRate = 0.95f;
 
     private string apiKey;
     private AudioSource audioSource;
-    private string textLLM;
+    private string lastMessageText;
     public bool isSpeaking = false;
 
     private string cachePath;
@@ -43,11 +44,11 @@ public class TextToSpeech : MonoBehaviour
     {
         if (string.IsNullOrEmpty(text))
         {
-            Debug.LogError("O texto de entrada está vazio ou nulo!");
+            Debug.LogError("O texto de entrada está vazio!");
             return;
         }
 
-        textLLM = text;
+        lastMessageText = text;
         StartCoroutine(SpeakWithCache(text, notify));
     }
 
@@ -56,6 +57,7 @@ public class TextToSpeech : MonoBehaviour
         string hash = GetMD5Hash(text + voiceType.ToString() + (voiceNameOverride ?? ""));
         string cachedFilePath = Path.Combine(cachePath, $"tts_{hash}.mp3");
 
+        // Se já existe cache, só toca
         if (File.Exists(cachedFilePath))
         {
             yield return PlayAudio(cachedFilePath, notify);
@@ -64,7 +66,7 @@ public class TextToSpeech : MonoBehaviour
 
         if (string.IsNullOrEmpty(apiKey))
         {
-            Debug.LogError("API Key ausente. Abortando requisição TTS.");
+            Debug.LogError("API Key ausente. Abortando TTS.");
             yield break;
         }
 
@@ -75,7 +77,6 @@ public class TextToSpeech : MonoBehaviour
 
         string escapedText = EscapeForJson(text);
 
-       
         string json = $@"
         {{
             ""input"": {{
@@ -109,15 +110,15 @@ public class TextToSpeech : MonoBehaviour
                 yield break;
             }
 
-            TTSResponse ttsResp = JsonUtility.FromJson<TTSResponse>(request.downloadHandler.text);
+            TTSResponse resp = JsonUtility.FromJson<TTSResponse>(request.downloadHandler.text);
 
-            if (ttsResp == null || string.IsNullOrEmpty(ttsResp.audioContent))
+            if (resp == null || string.IsNullOrEmpty(resp.audioContent))
             {
                 Debug.LogError("Resposta de áudio vazia ou inválida!");
                 yield break;
             }
 
-            File.WriteAllBytes(cachedFilePath, Convert.FromBase64String(ttsResp.audioContent));
+            File.WriteAllBytes(cachedFilePath, Convert.FromBase64String(resp.audioContent));
             yield return PlayAudio(cachedFilePath, notify);
         }
     }
@@ -143,7 +144,7 @@ public class TextToSpeech : MonoBehaviour
             audioSource.Play();
 
             OnAudioStarted(notify);
-            Invoke(nameof(OnAudioFinished), audioSource.clip.length - 0.3f);
+            Invoke(nameof(OnAudioFinished), audioSource.clip.length - 0.25f);
         }
     }
 
@@ -152,10 +153,7 @@ public class TextToSpeech : MonoBehaviour
         isSpeaking = true;
 
         if (notify)
-        {
-            NPCVoice npcVoice = FindAnyObjectByType<NPCVoice>();
-            npcVoice?.StartTypingChatBox(textLLM);
-        }
+            OnTTSMessageStarted?.Invoke(lastMessageText);
     }
 
     private void OnAudioFinished()
@@ -176,7 +174,10 @@ public class TextToSpeech : MonoBehaviour
 
     private string EscapeForJson(string input)
     {
-        return input.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", " ").Replace("\r", " ");
+        return input.Replace("\\", "\\\\")
+                    .Replace("\"", "\\\"")
+                    .Replace("\n", " ")
+                    .Replace("\r", " ");
     }
 
     private void ClearOldAudioCache()
@@ -186,43 +187,40 @@ public class TextToSpeech : MonoBehaviour
             var files = new DirectoryInfo(cachePath).GetFiles("tts_*.mp3");
             float totalSize = 0f;
 
-            foreach (var f in files) totalSize += f.Length / (1024f * 1024f);
+            foreach (var f in files)
+                totalSize += f.Length / (1024f * 1024f);
 
             if (totalSize > MAX_CACHE_SIZE_MB)
-                foreach (var f in files) f.Delete();
+                foreach (var f in files)
+                    f.Delete();
         }
         catch { }
     }
 
     private string GetVoiceName(VoiceType type)
     {
-        // Se o usuário quiser forçar alguma voz manualmente
         if (!string.IsNullOrEmpty(voiceNameOverride))
             return voiceNameOverride;
 
         switch (type)
         {
             case VoiceType.Masculina:
-                // Voz natural masculina
                 pitch = 0f;
-                speakingRate = 1.0f;
+                speakingRate = 1f;
                 return "pt-BR-Wavenet-B";
 
             case VoiceType.Feminina:
-                // Voz natural feminina
                 pitch = 0f;
-                speakingRate = 1.0f;
+                speakingRate = 1f;
                 return "pt-BR-Wavenet-A";
 
             case VoiceType.Robo:
             default:
-                // Voz robótica igual ao seu script antigo
-                pitch = 4f;          // mais agudo / robótico
-                speakingRate = 0.85f; // mais lento / mecânico
+                pitch = 4f;
+                speakingRate = 0.85f;
                 return "pt-BR-Wavenet-B";
         }
     }
-
 
     public enum VoiceType { Robo, Masculina, Feminina }
 }
