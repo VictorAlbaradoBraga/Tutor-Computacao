@@ -24,7 +24,7 @@
     {
       "displayName": "Chat UI",
       "description": "Prefab de interface de chat pronta para arrastar para a cena.",
-      "path": "Runtime/UI"
+      "path": "Samples~"
     }
   ]
 }
